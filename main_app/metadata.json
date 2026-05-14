@@ -1,0 +1,5 @@
+{
+  "name": "Beauty Care by Nabila - AI Receptionist",
+  "description": "A professional AI salon receptionist that manages bookings, checks availability, and suggests alternative slots using Google Calendar.",
+  "requestFramePermissions": []
+}
