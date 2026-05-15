@@ -12,7 +12,9 @@ interface Message {
 }
 
 const MESSAGES_KEY = "hhp_chat_msgs";
-const HISTORY_KEY = "hhp_chat_hist";
+const HISTORY_KEY  = "hhp_chat_hist";
+const SESSION_FLAG = "hhp_chat_init"; // sessionStorage: marks this tab as initialized
+const BC_CHANNEL   = "hhp_chat_bc";  // BroadcastChannel: detects live tabs
 
 type AiChatConfig = { proxyUrl?: string; archiveUrl?: string };
 const aiConfig = (window as Window & { aiChatConfig?: AiChatConfig }).aiChatConfig ?? ({} as AiChatConfig);
@@ -24,10 +26,10 @@ const INITIAL_MESSAGE: Message = {
     "Hi! I'm your AI real estate assistant for Panama. How can I help you today?",
 };
 
-function loadStoredChat(): { messages: Message[]; history: unknown[] } | null {
+function loadFromStorage(): { messages: Message[]; history: unknown[] } | null {
   try {
-    const msgs = JSON.parse(sessionStorage.getItem(MESSAGES_KEY) ?? "null");
-    const hist = JSON.parse(sessionStorage.getItem(HISTORY_KEY) ?? "null");
+    const msgs = JSON.parse(localStorage.getItem(MESSAGES_KEY) ?? "null");
+    const hist = JSON.parse(localStorage.getItem(HISTORY_KEY)  ?? "null");
     if (Array.isArray(msgs) && Array.isArray(hist)) return { messages: msgs, history: hist };
   } catch {}
   return null;
@@ -36,13 +38,13 @@ function loadStoredChat(): { messages: Message[]; history: unknown[] } | null {
 function saveStoredChat(messages: Message[], history: unknown[]) {
   try {
     const trimmedHistory = Array.isArray(history) ? history.slice(-30) : [];
-    sessionStorage.setItem(MESSAGES_KEY, JSON.stringify(messages));
-    sessionStorage.setItem(HISTORY_KEY, JSON.stringify(trimmedHistory));
+    localStorage.setItem(MESSAGES_KEY, JSON.stringify(messages));
+    localStorage.setItem(HISTORY_KEY,  JSON.stringify(trimmedHistory));
   } catch {}
 }
 
 function clearStoredChat() {
-  [MESSAGES_KEY, HISTORY_KEY].forEach((k) => sessionStorage.removeItem(k));
+  [MESSAGES_KEY, HISTORY_KEY].forEach((k) => localStorage.removeItem(k));
 }
 
 function stripEmoji(text: string): string {
@@ -131,15 +133,59 @@ function PropertyCard({ prop }: { prop: PropertyResult }) {
 }
 
 export default function App({ onClose }: { onClose?: () => void }) {
-  const [initialData] = useState(() => loadStoredChat());
-  const [chat, setChat] = useState(() => createChat(initialData?.history ?? []));
-  const [messages, setMessages] = useState<Message[]>(
-    () => initialData?.messages ?? [INITIAL_MESSAGE]
-  );
+  const [chat, setChat] = useState(() => createChat([]));
+  const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Determine whether to restore history using BroadcastChannel.
+  // If another tab replies to our ping, we're in an active browser session → restore.
+  // If no reply within 200ms, the browser was just opened → start fresh and clear stale data.
+  useEffect(() => {
+    const bc = new BroadcastChannel(BC_CHANNEL);
+
+    if (sessionStorage.getItem(SESSION_FLAG)) {
+      // Tab already initialized (same-tab navigation) — restore history and answer pings.
+      const stored = loadFromStorage();
+      if (stored) {
+        setMessages(stored.messages);
+        setChat(createChat(stored.history));
+      }
+      bc.onmessage = (e) => { if (e.data === "ping") bc.postMessage("pong"); };
+      return () => bc.close();
+    }
+
+    let settled = false;
+
+    bc.onmessage = (e) => {
+      if (e.data === "pong" && !settled) {
+        settled = true;
+        sessionStorage.setItem(SESSION_FLAG, "1");
+        const stored = loadFromStorage();
+        if (stored) {
+          setMessages(stored.messages);
+          setChat(createChat(stored.history));
+        }
+        bc.onmessage = (e2) => { if (e2.data === "ping") bc.postMessage("pong"); };
+      }
+    };
+
+    bc.postMessage("ping");
+
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        sessionStorage.setItem(SESSION_FLAG, "1");
+        // No other tabs alive → browser was just opened. Wipe stale localStorage data.
+        clearStoredChat();
+        bc.onmessage = (e) => { if (e.data === "ping") bc.postMessage("pong"); };
+      }
+    }, 200);
+
+    return () => { clearTimeout(timer); bc.close(); };
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
