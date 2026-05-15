@@ -11,7 +11,7 @@ export default function ChatWidget() {
       <button
         onClick={() => setOpen((o) => !o)}
         title={open ? "Close" : "Find Panama Properties"}
-        className="fixed bottom-6 right-6 z-[9999] bg-[#c2ab92] p-4 rounded-full shadow-xl hover:bg-[#a8937a] transition-colors cursor-pointer"
+        className="fixed bottom-6 right-6 z-[9999] bg-[var(--ai-primary)] p-4 rounded-full shadow-xl hover:bg-[var(--ai-primary-hover)] transition-colors cursor-pointer"
       >
         {open ? <X size={22} color="#2d1f14" /> : <MessageCircle size={22} color="#2d1f14" />}
       </button>

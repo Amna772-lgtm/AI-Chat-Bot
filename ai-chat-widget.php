@@ -22,138 +22,101 @@ add_action('admin_menu', function () {
 });
 
 add_action('admin_init', function () {
-    register_setting('ai_chat_settings', 'ai_provider', [
-        'sanitize_callback' => fn($v) => in_array($v, ['claude', 'gemini'], true) ? $v : 'claude',
-    ]);
     register_setting('ai_chat_settings', 'ai_anthropic_api_key', [
         'sanitize_callback' => 'sanitize_text_field',
     ]);
-    register_setting('ai_chat_settings', 'ai_gemini_api_key', [
+    register_setting('ai_chat_settings', 'ai_widget_name', [
         'sanitize_callback' => 'sanitize_text_field',
+    ]);
+    register_setting('ai_chat_settings', 'ai_primary_color', [
+        'sanitize_callback' => 'sanitize_hex_color',
+    ]);
+    register_setting('ai_chat_settings', 'ai_welcome_message', [
+        'sanitize_callback' => 'sanitize_textarea_field',
+    ]);
+    register_setting('ai_chat_settings', 'ai_widget_subtitle', [
+        'sanitize_callback' => 'sanitize_text_field',
+    ]);
+    register_setting('ai_chat_settings', 'ai_claude_model', [
+        'sanitize_callback' => fn($v) => in_array($v, ['claude-sonnet-4-6', 'claude-haiku-4-5-20251001'], true) ? $v : 'claude-sonnet-4-6',
     ]);
 });
 
 function ai_chat_settings_page(): void {
     if (!current_user_can('manage_options')) return;
 
-    $provider       = get_option('ai_provider', 'claude');
-    $has_anthropic  = !empty(get_option('ai_anthropic_api_key', ''));
-    $has_gemini     = !empty(get_option('ai_gemini_api_key', ''));
-
-    // Test endpoint result
-    $test_result = '';
-    if (isset($_GET['test']) && $_GET['test'] === '1' && check_admin_referer('ai_chat_test')) {
-        $test_result = ai_chat_test_connection();
-    }
+    $has_anthropic = !empty(get_option('ai_anthropic_api_key', ''));
     ?>
     <div class="wrap">
         <h1>AI Chat Widget Settings</h1>
-
-        <?php if ($test_result): ?>
-            <div class="notice notice-<?php echo str_starts_with($test_result, 'OK') ? 'success' : 'error'; ?> is-dismissible">
-                <p><?php echo esc_html($test_result); ?></p>
-            </div>
-        <?php endif; ?>
 
         <form method="post" action="options.php">
             <?php settings_fields('ai_chat_settings'); ?>
 
             <table class="form-table" role="presentation">
                 <tr>
-                    <th scope="row">AI Provider</th>
-                    <td>
-                        <fieldset>
-                            <label style="display:block;margin-bottom:8px">
-                                <input type="radio" name="ai_provider" value="claude"
-                                    <?php checked($provider, 'claude'); ?> />
-                                &nbsp;<strong>Claude</strong> (Anthropic)
-                                <?php if ($has_anthropic): ?>
-                                    <span style="color:#46b450;margin-left:6px">&#10003; Key saved</span>
-                                <?php else: ?>
-                                    <span style="color:#dc3232;margin-left:6px">&#9888; No key</span>
-                                <?php endif; ?>
-                            </label>
-                            <label style="display:block">
-                                <input type="radio" name="ai_provider" value="gemini"
-                                    <?php checked($provider, 'gemini'); ?> />
-                                &nbsp;<strong>Gemini</strong> (Google)
-                                <?php if ($has_gemini): ?>
-                                    <span style="color:#46b450;margin-left:6px">&#10003; Key saved</span>
-                                <?php else: ?>
-                                    <span style="color:#dc3232;margin-left:6px">&#9888; No key</span>
-                                <?php endif; ?>
-                            </label>
-                        </fieldset>
-                    </td>
-                </tr>
-                <tr>
                     <th scope="row"><label for="ai_anthropic_api_key">Anthropic API Key</label></th>
                     <td>
                         <input type="password" id="ai_anthropic_api_key" name="ai_anthropic_api_key"
-                            class="regular-text" autocomplete="new-password"
+                            style="width:50%" autocomplete="new-password"
                             placeholder="<?php echo $has_anthropic ? '(saved — paste to replace)' : 'sk-ant-api03-...'; ?>"
                             value="" />
-                        <p class="description">Leave blank to keep the existing key.</p>
                     </td>
                 </tr>
                 <tr>
-                    <th scope="row"><label for="ai_gemini_api_key">Gemini API Key</label></th>
+                    <th scope="row"><label for="ai_widget_name">Widget Name</label></th>
                     <td>
-                        <input type="password" id="ai_gemini_api_key" name="ai_gemini_api_key"
-                            class="regular-text" autocomplete="new-password"
-                            placeholder="<?php echo $has_gemini ? '(saved — paste to replace)' : 'AIzaSy...'; ?>"
-                            value="" />
-                        <p class="description">Leave blank to keep the existing key.</p>
+                        <input type="text" id="ai_widget_name" name="ai_widget_name"
+                            style="width:50%"
+                            value="<?php echo esc_attr(get_option('ai_widget_name', 'House Hunter Panama')); ?>" />
+                        <p class="description">Displayed in the chat header.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="ai_primary_color">Widget Color</label></th>
+                    <td>
+                        <input type="color" id="ai_primary_color" name="ai_primary_color"
+                            value="<?php echo esc_attr(get_option('ai_primary_color', '#c2ab92')); ?>" />
+                        <p class="description">Primary color for the header, buttons, and chat bubbles.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="ai_welcome_message">Welcome Message</label></th>
+                    <td>
+                        <textarea id="ai_welcome_message" name="ai_welcome_message"
+                            style="width:50%" rows="3"><?php echo esc_textarea(get_option('ai_welcome_message', "Hi! I'm your AI real estate assistant for Panama. How can I help you today?")); ?></textarea>
+                        <p class="description">First message shown when the chat opens.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="ai_widget_subtitle">Widget Subtitle</label></th>
+                    <td>
+                        <input type="text" id="ai_widget_subtitle" name="ai_widget_subtitle"
+                            style="width:50%"
+                            value="<?php echo esc_attr(get_option('ai_widget_subtitle', 'Online · AI Property Assistant')); ?>" />
+                        <p class="description">Small line shown below the widget name in the header.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="ai_claude_model">Claude Model</label></th>
+                    <td>
+                        <select id="ai_claude_model" name="ai_claude_model">
+                            <option value="claude-sonnet-4-6" <?php selected(get_option('ai_claude_model', 'claude-sonnet-4-6'), 'claude-sonnet-4-6'); ?>>
+                                Claude Sonnet — Smarter, better responses
+                            </option>
+                            <option value="claude-haiku-4-5-20251001" <?php selected(get_option('ai_claude_model', 'claude-sonnet-4-6'), 'claude-haiku-4-5-20251001'); ?>>
+                                Claude Haiku — Faster, more affordable
+                            </option>
+                        </select>
+                        <p class="description">Sonnet gives better answers; Haiku responds faster and costs less.</p>
                     </td>
                 </tr>
             </table>
 
             <?php submit_button('Save Settings'); ?>
         </form>
-
-        <hr />
-        <h2>Test Connection</h2>
-        <p>Sends a simple "hello" to the active provider to verify the key works.</p>
-        <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?page=ai-chat-widget&test=1'), 'ai_chat_test')); ?>"
-           class="button button-secondary">Test active provider</a>
     </div>
     <?php
-}
-
-function ai_chat_test_connection(): string {
-    $provider = get_option('ai_provider', 'claude');
-    $key      = $provider === 'gemini'
-        ? get_option('ai_gemini_api_key', '')
-        : get_option('ai_anthropic_api_key', '');
-
-    if (empty($key)) return 'ERROR: No API key saved for the active provider.';
-
-    if ($provider === 'gemini') {
-        $url  = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' . rawurlencode($key);
-        $http = wp_remote_post($url, [
-            'headers' => ['Content-Type' => 'application/json'],
-            'body'    => wp_json_encode(['contents' => [['role' => 'user', 'parts' => [['text' => 'Say "ok"']]]]]),
-            'timeout' => 15,
-        ]);
-    } else {
-        $http = wp_remote_post('https://api.anthropic.com/v1/messages', [
-            'headers' => [
-                'Content-Type'      => 'application/json',
-                'x-api-key'         => $key,
-                'anthropic-version' => '2023-06-01',
-            ],
-            'body'    => wp_json_encode([
-                'model'      => 'claude-haiku-4-5-20251001',
-                'max_tokens' => 10,
-                'messages'   => [['role' => 'user', 'content' => 'Say ok']],
-            ]),
-            'timeout' => 15,
-        ]);
-    }
-
-    if (is_wp_error($http)) return 'ERROR: ' . $http->get_error_message();
-    $status = (int) wp_remote_retrieve_response_code($http);
-    return $status === 200 ? 'OK: Connection successful.' : 'ERROR: API returned HTTP ' . $status . ' — ' . wp_remote_retrieve_body($http);
 }
 
 // Preserve existing key if the field is submitted blank
@@ -161,10 +124,13 @@ add_filter('pre_update_option_ai_anthropic_api_key', function ($new, $old) {
     return $new === '' ? $old : $new;
 }, 10, 2);
 
-add_filter('pre_update_option_ai_gemini_api_key', function ($new, $old) {
-    return $new === '' ? $old : $new;
-}, 10, 2);
-
+function ai_derive_colors(string $hex): array {
+    $hex = ltrim($hex, '#');
+    [$r, $g, $b] = sscanf($hex, "%02x%02x%02x");
+    $hover     = sprintf('#%02x%02x%02x', (int)($r * 0.87), (int)($g * 0.87), (int)($b * 0.87));
+    $secondary = sprintf('#%02x%02x%02x', (int)($r * 0.72), (int)($g * 0.72), (int)($b * 0.72));
+    return ['primary' => '#' . $hex, 'hover' => $hover, 'secondary' => $secondary];
+}
 
 // ─── Enqueue assets ───────────────────────────────────────────────────────────
 
@@ -184,15 +150,24 @@ add_action('wp_enqueue_scripts', function () {
     }
 
     wp_localize_script('ai-chat-script', 'aiChatConfig', [
-        'provider'   => get_option('ai_provider', 'claude'),
-        'proxyUrl'   => home_url('/wp-json/ai/v1/chat'),
-        'archiveUrl' => get_post_type_archive_link('properties') ?: home_url('/properties/'),
-        'nonce'      => wp_create_nonce('ai_chat_nonce'),
+        'proxyUrl'       => home_url('/wp-json/ai/v1/chat'),
+        'archiveUrl'     => get_post_type_archive_link('properties') ?: home_url('/properties/'),
+        'nonce'          => wp_create_nonce('ai_chat_nonce'),
+        'widgetName'     => get_option('ai_widget_name', 'House Hunter Panama'),
+        'welcomeMessage' => get_option('ai_welcome_message', "Hi! I'm your AI real estate assistant for Panama. How can I help you today?"),
+        'widgetSubtitle' => get_option('ai_widget_subtitle', 'Online · AI Property Assistant'),
     ]);
 });
 
 add_action('wp_footer', function () {
-    echo '<div id="ai-chat-widget"></div>';
+    $colors = ai_derive_colors(get_option('ai_primary_color', '#c2ab92'));
+    $style  = sprintf(
+        '--ai-primary:%s;--ai-primary-hover:%s;--ai-secondary:%s',
+        esc_attr($colors['primary']),
+        esc_attr($colors['hover']),
+        esc_attr($colors['secondary'])
+    );
+    echo '<div id="ai-chat-widget" style="' . $style . '"></div>';
 });
 
 // ─── AI Chat Proxy REST endpoint ──────────────────────────────────────────────
@@ -352,68 +327,6 @@ function ai_claude_tools(): array {
             ],
         ],
     ];
-}
-
-function ai_gemini_tools(): array {
-    return [[
-        'functionDeclarations' => [
-            [
-                'name'        => 'list_available_cities',
-                'description' => 'Get all cities where properties are listed.',
-                'parameters'  => ['type' => 'OBJECT', 'properties' => (object)[]],
-            ],
-            [
-                'name'        => 'search_properties',
-                'description' => 'Search properties with optional filters. Use sort=price_asc for cheapest first.',
-                'parameters'  => [
-                    'type'       => 'OBJECT',
-                    'properties' => [
-                        'city'          => ['type' => 'STRING', 'description' => 'City slug: panama-city, coronado, boquete, bugaba-la-concepcion.'],
-                        'property_type' => ['type' => 'STRING', 'description' => 'Property type: apartment, house, condo, land, commercial, villa.'],
-                        'category'      => ['type' => 'STRING', 'description' => 'Property category keyword (e.g. residential, commercial, vacation).'],
-                        'neighborhood'  => ['type' => 'STRING', 'description' => 'Neighborhood name keyword (e.g. Paitilla, El Cangrejo, Marbella).'],
-                        'status'        => ['type' => 'STRING', 'description' => 'for_rent = rentals only, for_sale = purchase only. Always set when user specifies.'],
-                        'min_price'     => ['type' => 'NUMBER', 'description' => 'Min price USD.'],
-                        'max_price'     => ['type' => 'NUMBER', 'description' => 'Max price USD.'],
-                        'bedrooms'      => ['type' => 'NUMBER', 'description' => 'Exact bedrooms.'],
-                        'min_area'      => ['type' => 'NUMBER', 'description' => 'Min area m².'],
-                        'max_area'      => ['type' => 'NUMBER', 'description' => 'Max area m².'],
-                        'amenity'       => ['type' => 'STRING', 'description' => 'Amenity/feature keyword: pool, gym, ocean view, beach, gated, security, AC, appliances, garage, balcony, elevator. Searches amenity and feature taxonomies.'],
-                        'feature'       => ['type' => 'STRING', 'description' => 'Feature keyword: furnished, semi-furnished, hardwood floors, basement, roof terrace, solar, fireplace.'],
-                        'parking'       => ['type' => 'STRING', 'description' => 'Parking type: garage, covered, street, underground, assigned.'],
-                        'label'         => ['type' => 'STRING', 'description' => 'Listing label: new, hot deal, reduced, featured, price drop.'],
-                        'rent_period'          => ['type' => 'STRING',  'description' => 'Rent period: monthly, yearly, weekly, daily.'],
-                        'attribute'            => ['type' => 'STRING',  'description' => 'beach cities, luxury areas, investment hotspots, affordable.'],
-                        'sort'                 => ['type' => 'STRING',  'description' => 'price_asc or price_desc.'],
-                        'limit'                => ['type' => 'NUMBER',  'description' => 'Max results (default 6).'],
-                        'has_virtual_tour'     => ['type' => 'BOOLEAN', 'description' => 'Set true to only return properties that have a virtual tour.'],
-                        'has_digital_magazine' => ['type' => 'BOOLEAN', 'description' => 'Set true to only return properties that have a digital magazine.'],
-                    ],
-                ],
-            ],
-            [
-                'name'        => 'get_city_details',
-                'description' => 'Get detailed info about one city.',
-                'parameters'  => [
-                    'type'       => 'OBJECT',
-                    'properties' => ['city_slug' => ['type' => 'STRING', 'description' => 'City slug.']],
-                    'required'   => ['city_slug'],
-                ],
-            ],
-            [
-                'name'        => 'get_property_details',
-                'description' => 'Get complete details for a single property by ID.',
-                'parameters'  => [
-                    'type'       => 'OBJECT',
-                    'properties' => [
-                        'property_id' => ['type' => 'STRING', 'description' => 'Property ID (prop_XXXX).'],
-                        'city_slug'   => ['type' => 'STRING', 'description' => 'City slug.'],
-                    ],
-                    'required'   => ['property_id'],
-                ],
-            ],
-        ],
-    ]];
 }
 
 // ─── Live Estatik property extraction ────────────────────────────────────────
@@ -969,10 +882,7 @@ function ai_proxy_handler(WP_REST_Request $request): WP_REST_Response {
         return new WP_REST_Response(['type' => 'error', 'message' => 'Too many requests. Please wait a minute and try again.'], 429);
     }
 
-    $provider = get_option('ai_provider', 'claude');
-    $api_key  = $provider === 'gemini'
-        ? get_option('ai_gemini_api_key', '')
-        : get_option('ai_anthropic_api_key', '');
+    $api_key = get_option('ai_anthropic_api_key', '');
 
     if (empty($api_key)) {
         return new WP_REST_Response(['type' => 'error', 'message' => 'AI not configured. Go to AI Chat in the WordPress admin sidebar to enter your API key.'], 503);
@@ -982,9 +892,7 @@ function ai_proxy_handler(WP_REST_Request $request): WP_REST_Response {
     $text    = sanitize_textarea_field($body['text'] ?? '');
     $history = is_array($body['history'] ?? null) ? $body['history'] : [];
 
-    return $provider === 'gemini'
-        ? ai_proxy_gemini($api_key, $text, $history)
-        : ai_proxy_claude($api_key, $text, $history);
+    return ai_proxy_claude($api_key, $text, $history);
 }
 
 function ai_merge_search_args(array $calls): ?array {
@@ -1012,7 +920,7 @@ function ai_proxy_claude(string $api_key, string $text, array $history): WP_REST
                 'anthropic-version' => '2023-06-01',
             ],
             'body'    => wp_json_encode([
-                'model'      => 'claude-sonnet-4-6',
+                'model'      => get_option('ai_claude_model', 'claude-sonnet-4-6'),
                 'max_tokens' => 4096,
                 'system'     => [['type' => 'text', 'text' => ai_system_prompt()]],
                 'tools'      => ai_claude_tools(),
@@ -1062,77 +970,6 @@ function ai_proxy_claude(string $api_key, string $text, array $history): WP_REST
             ];
         }
         $messages[] = ['role' => 'user', 'content' => $tool_results];
-    }
-
-    return new WP_REST_Response(['type' => 'error', 'message' => 'Max tool iterations reached.'], 500);
-}
-
-function ai_proxy_gemini(string $api_key, string $text, array $history): WP_REST_Response {
-    $contents       = $history;
-    $contents[]     = ['role' => 'user', 'parts' => [['text' => $text]]];
-    $all_properties = [];
-    $search_calls   = [];
-
-    for ($i = 0; $i < 5; $i++) {
-        $url  = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' . rawurlencode($api_key);
-        $http = wp_remote_post($url, [
-            'headers' => ['Content-Type' => 'application/json'],
-            'body'    => wp_json_encode([
-                'systemInstruction' => ['parts' => [['text' => ai_system_prompt()]]],
-                'tools'             => ai_gemini_tools(),
-                'contents'          => $contents,
-            ]),
-            'timeout' => 90,
-        ]);
-
-        if (is_wp_error($http)) {
-            return new WP_REST_Response(['type' => 'error', 'message' => $http->get_error_message()], 502);
-        }
-
-        $status = (int)wp_remote_retrieve_response_code($http);
-        $data   = json_decode(wp_remote_retrieve_body($http), true);
-
-        if ($status !== 200) {
-            $msg = $data['error']['message'] ?? "Gemini API error (HTTP $status)";
-            return new WP_REST_Response(['type' => 'error', 'message' => $msg], 502);
-        }
-
-        $candidate = $data['candidates'][0]['content'] ?? null;
-        if (!$candidate) {
-            return new WP_REST_Response(['type' => 'error', 'message' => 'Empty response from Gemini.'], 502);
-        }
-
-        $contents[] = $candidate;
-        $parts      = $candidate['parts'] ?? [];
-        $fn_calls   = array_values(array_filter($parts, fn($p) => isset($p['functionCall'])));
-
-        if (empty($fn_calls)) {
-            $text_parts = array_values(array_filter($parts, fn($p) => isset($p['text'])));
-            $merged     = ai_merge_search_args($search_calls);
-            return new WP_REST_Response([
-                'type'       => 'text',
-                'text'       => $text_parts[0]['text'] ?? '',
-                'history'    => $contents,
-                'properties' => ai_dedupe_properties($all_properties),
-                'search_url' => $merged ? ai_build_search_url($merged) : null,
-            ]);
-        }
-
-        // Execute tool calls server-side
-        $fn_responses = [];
-        foreach ($fn_calls as $fc) {
-            $fn_args = (array)($fc['functionCall']['args'] ?? []);
-            if ($fc['functionCall']['name'] === 'search_properties') $search_calls[] = $fn_args;
-            $tool_output   = ai_execute_tool($fc['functionCall']['name'], $fn_args);
-            $all_properties = array_merge($all_properties, $tool_output['properties']);
-            $fn_responses[] = [
-                'functionResponse' => [
-                    'name'     => $fc['functionCall']['name'],
-                    'response' => $tool_output['result'],
-                ],
-            ];
-        }
-        $contents[] = ['role' => 'user', 'parts' => $fn_responses];
     }
 
     return new WP_REST_Response(['type' => 'error', 'message' => 'Max tool iterations reached.'], 500);

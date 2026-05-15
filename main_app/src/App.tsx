@@ -16,14 +16,13 @@ const HISTORY_KEY  = "hhp_chat_hist";
 const SESSION_FLAG = "hhp_chat_init"; // sessionStorage: marks this tab as initialized
 const BC_CHANNEL   = "hhp_chat_bc";  // BroadcastChannel: detects live tabs
 
-type AiChatConfig = { proxyUrl?: string; archiveUrl?: string };
+type AiChatConfig = { proxyUrl?: string; archiveUrl?: string; widgetName?: string; welcomeMessage?: string; widgetSubtitle?: string };
 const aiConfig = (window as Window & { aiChatConfig?: AiChatConfig }).aiChatConfig ?? ({} as AiChatConfig);
 const archiveUrl = aiConfig.archiveUrl ?? "/properties/";
 
 const INITIAL_MESSAGE: Message = {
   role: "model",
-  content:
-    "Hi! I'm your AI real estate assistant for Panama. How can I help you today?",
+  content: aiConfig.welcomeMessage ?? "Hi! I'm your AI real estate assistant for Panama. How can I help you today?",
 };
 
 function loadFromStorage(): { messages: Message[]; history: unknown[] } | null {
@@ -66,7 +65,7 @@ function renderText(text: string): React.ReactNode {
           href={link[2]}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-[#8b6f52] underline hover:text-[#c2ab92]"
+          className="text-[var(--ai-secondary)] underline hover:text-[var(--ai-primary)]"
         >
           {link[1]}
         </a>
@@ -98,7 +97,7 @@ function PropertyCard({ prop }: { prop: PropertyResult }) {
       href={prop.permalink}
       target="_blank"
       rel="noopener noreferrer"
-      className="block bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md hover:border-[#c2ab92] transition-all"
+      className="block bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md hover:border-[var(--ai-primary)] transition-all"
     >
       {img ? (
         <img
@@ -110,13 +109,13 @@ function PropertyCard({ prop }: { prop: PropertyResult }) {
           }}
         />
       ) : (
-        <div className="w-full h-16 bg-[#c2ab92]/20" />
+        <div className="w-full h-16 bg-[var(--ai-primary)]/20" />
       )}
       <div className="p-3">
         <p className="font-semibold text-xs text-gray-800 line-clamp-2 leading-tight">
           {prop.title}
         </p>
-        <p className="text-[#8b6f52] font-bold text-sm mt-1">{displayPrice}</p>
+        <p className="text-[var(--ai-secondary)] font-bold text-sm mt-1">{displayPrice}</p>
         <p className="text-gray-400 text-xs mt-0.5 truncate">
           {prop.location.neighborhood || prop.location.city}
         </p>
@@ -249,15 +248,15 @@ export default function App({ onClose }: { onClose?: () => void }) {
   return (
     <div className="h-full flex flex-col bg-gray-50 text-gray-800 font-sans">
       {/* Header */}
-      <div className="shrink-0 bg-[#c2ab92] px-4 py-3 flex items-center gap-3">
+      <div className="shrink-0 bg-[var(--ai-primary)] px-4 py-3 flex items-center gap-3">
         <div className="w-9 h-9 bg-[#2d1f14]/10 rounded-full flex items-center justify-center shrink-0">
           <Home size={16} className="text-[#2d1f14]" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm leading-tight text-[#2d1f14]">House Hunter Panama</p>
+          <p className="font-semibold text-sm leading-tight text-[#2d1f14]">{aiConfig.widgetName ?? 'House Hunter Panama'}</p>
           <p className="text-xs text-[#2d1f14]/60 flex items-center gap-1 mt-0.5">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>
-            Online · AI Property Assistant
+            {aiConfig.widgetSubtitle ?? 'Online · AI Property Assistant'}
           </p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -296,7 +295,7 @@ export default function App({ onClose }: { onClose?: () => void }) {
                 <div
                   className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
                     msg.role === "user"
-                      ? "bg-[#c2ab92] text-[#2d1f14] rounded-tr-none"
+                      ? "bg-[var(--ai-primary)] text-[#2d1f14] rounded-tr-none"
                       : "bg-white text-gray-800 rounded-tl-none border border-gray-200 shadow-sm"
                   }`}
                 >
@@ -315,7 +314,7 @@ export default function App({ onClose }: { onClose?: () => void }) {
                         href={msg.searchUrl || archiveUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="mt-2 block text-center text-xs font-medium text-[#8b6f52] hover:underline py-1"
+                        className="mt-2 block text-center text-xs font-medium text-[var(--ai-secondary)] hover:underline py-1"
                       >
                         Show all results →
                       </a>
@@ -343,7 +342,7 @@ export default function App({ onClose }: { onClose?: () => void }) {
         )}
       </div>
 
-    
+
       {/* Input */}
       <div className="shrink-0 px-4 py-3 border-t border-gray-200 bg-white">
         <div className="flex items-end gap-2">
@@ -364,12 +363,12 @@ export default function App({ onClose }: { onClose?: () => void }) {
             placeholder="Search properties or ask a question…"
             rows={1}
             style={{ minHeight: '40px', borderRadius: '10px' }}
-            className="flex-1 bg-gray-100 py-3 px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#c2ab92]/50 focus:bg-white transition resize-none overflow-hidden"
+            className="flex-1 bg-gray-100 py-3 px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--ai-primary)]/50 focus:bg-white transition resize-none overflow-hidden"
           />
           <button
             onClick={() => sendMessage()}
             disabled={isLoading || !input.trim()}
-            className="shrink-0 flex items-center justify-center h-9 w-9 rounded-full bg-[#a8937a] text-white hover:bg-[#8b6f52] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer mb-0.5"
+            className="shrink-0 flex items-center justify-center h-9 w-9 rounded-full bg-[var(--ai-primary-hover)] text-white hover:bg-[var(--ai-secondary)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer mb-0.5"
           >
             <Send size={16} />
           </button>
