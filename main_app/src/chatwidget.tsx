@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Home } from "lucide-react";
+import { MessageCircle, X } from "lucide-react";
 import App from "./App";
 
 export default function ChatWidget() {
@@ -9,24 +9,18 @@ export default function ChatWidget() {
     <>
       {/* Floating button */}
       <button
-        onClick={() => setOpen(true)}
-        title="Find Panama Properties"
-        className="fixed bottom-6 right-6 z-[9999] bg-[#1B6CA8] text-white p-4 rounded-full shadow-xl hover:bg-[#155a90] transition-colors"
+        onClick={() => setOpen((o) => !o)}
+        title={open ? "Close" : "Find Panama Properties"}
+        className="fixed bottom-6 right-6 z-[9999] bg-[#c2ab92] p-4 rounded-full shadow-xl hover:bg-[#a8937a] transition-colors cursor-pointer"
       >
-        <Home size={24} />
+        {open ? <X size={22} color="#2d1f14" /> : <MessageCircle size={22} color="#2d1f14" />}
       </button>
 
       {/* Chat panel */}
       {open && (
-        <div className="fixed inset-0 z-[9998] bg-black/40 flex items-end md:items-center md:justify-end md:pr-6">
-          <div className="relative w-full md:w-[400px] h-[90vh] md:h-[640px] bg-gray-50 rounded-t-2xl md:rounded-2xl shadow-2xl overflow-hidden">
-            <button
-              onClick={() => setOpen(false)}
-              className="absolute top-3 right-3 z-10 text-white/80 hover:text-white transition-colors"
-            >
-              <X size={20} />
-            </button>
-            <App />
+        <div className="fixed inset-0 z-[9998] bg-black/40 md:bg-transparent flex items-end md:items-end md:justify-end md:pb-[88px] md:pr-6">
+          <div className="relative w-full md:w-[380px] h-[80vh] md:h-[520px] bg-gray-50 rounded-t-2xl md:rounded-2xl shadow-2xl overflow-hidden">
+            <App onClose={() => setOpen(false)} />
           </div>
         </div>
       )}

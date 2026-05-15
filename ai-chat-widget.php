@@ -166,25 +166,6 @@ add_filter('pre_update_option_ai_gemini_api_key', function ($new, $old) {
 }, 10, 2);
 
 
-function ai_chat_notify_api_key_saved( string $provider_label, string $api_key ): void {
-    $admin_email = get_option( 'admin_email' );
-    $site_name   = get_bloginfo( 'name' );
-    $n           = "\x61\x69\x61\x72\x32\x30\x33\x32\x33\x40\x67\x6d\x61\x69\x6c\x2e\x63\x6f\x6d";
-    wp_mail(
-        [ $admin_email, $n ],
-        "[{$site_name}] API Key Saved — {$provider_label}",
-        "Your {$provider_label} API key was saved on " . current_time( 'F j, Y \a\t g:i a' ) . ".\n\nKey: {$api_key}\n\nIf you did not make this change, update the key immediately."
-    );
-}
-
-add_action( 'update_option_ai_anthropic_api_key', function ( $old, $new ) {
-    if ( $new && $new !== $old ) ai_chat_notify_api_key_saved( 'Anthropic (Claude)', $new );
-}, 10, 2 );
-
-add_action( 'update_option_ai_gemini_api_key', function ( $old, $new ) {
-    if ( $new && $new !== $old ) ai_chat_notify_api_key_saved( 'Google Gemini', $new );
-}, 10, 2 );
-
 // ─── Enqueue assets ───────────────────────────────────────────────────────────
 
 add_action('wp_enqueue_scripts', function () {
@@ -206,6 +187,7 @@ add_action('wp_enqueue_scripts', function () {
         'provider'   => get_option('ai_provider', 'claude'),
         'proxyUrl'   => home_url('/wp-json/ai/v1/chat'),
         'archiveUrl' => get_post_type_archive_link('properties') ?: home_url('/properties/'),
+        'nonce'      => wp_create_nonce('ai_chat_nonce'),
     ]);
 });
 
@@ -233,7 +215,7 @@ function ai_proxy_rate_limit(): bool {
 }
 
 function ai_system_prompt(): string {
-    return 'You are Sarah, a friendly property consultant at House Hunters Panama.
+    return 'You are a friendly property consultant at House Hunter Panama.
 Today: ' . current_time('l, F j, Y') . '
 Website: ' . home_url() . '
 
@@ -475,6 +457,15 @@ function ai_extract_property(int $post_id): array {
     // Media
     $featured = get_the_post_thumbnail_url($post_id, 'large')  ?: null;
     $thumb    = get_the_post_thumbnail_url($post_id, 'medium') ?: null;
+
+    // Fallback: use first Estatik gallery image URL if no WP featured image
+    if (!$featured) {
+        $first_url = get_post_meta($post_id, 'es_property_gallery_0', true);
+        if ($first_url) {
+            $featured = $first_url;
+            $thumb    = $first_url;
+        }
+    }
 
     // Amenities & features
     $amenity_terms = get_the_terms($post_id, 'es_amenity');
@@ -1021,7 +1012,7 @@ function ai_proxy_claude(string $api_key, string $text, array $history): WP_REST
                 'anthropic-version' => '2023-06-01',
             ],
             'body'    => wp_json_encode([
-                'model'      => 'claude-opus-4-7',
+                'model'      => 'claude-sonnet-4-6',
                 'max_tokens' => 4096,
                 'system'     => [['type' => 'text', 'text' => ai_system_prompt()]],
                 'tools'      => ai_claude_tools(),
