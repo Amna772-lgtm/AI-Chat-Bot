@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react"; // useCallback kept for clearChat
+import { flushSync } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { Send, Home, X } from "lucide-react";
+import { Send, Home, X, Mic, MicOff } from "lucide-react";
 import { createChat, isRateLimitError, isServerError, isTimeoutError } from "./services/chatService";
 import type { PropertyResult } from "./services/chatService";
 
@@ -136,8 +137,16 @@ export default function App({ onClose }: { onClose?: () => void }) {
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [sttError, setSttError] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const transcriptRef = useRef("");
+  const supportsSTT =
+    typeof window !== "undefined" &&
+    ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
+  const micAvailable = supportsSTT && typeof window !== "undefined" && window.isSecureContext;
 
   // Determine whether to restore history using BroadcastChannel.
   // If another tab replies to our ping, we're in an active browser session → restore.
@@ -243,6 +252,84 @@ export default function App({ onClose }: { onClose?: () => void }) {
     }
   };
 
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    const recognition: SpeechRecognition = new SR();
+    recognition.lang = "en-US";
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    recognitionRef.current = recognition;
+    transcriptRef.current = "";
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      setSttError("");
+      console.log("[STT] started");
+    };
+
+    recognition.addEventListener("speechstart", () => console.log("[STT] speech detected"));
+    recognition.addEventListener("speechend",   () => console.log("[STT] speech ended"));
+
+    recognition.onresult = (e: SpeechRecognitionEvent) => {
+      const transcript = Array.from(e.results)
+        .map((r) => r[0].transcript)
+        .join("");
+      console.log("[STT] result:", transcript);
+      transcriptRef.current = transcript;
+      // flushSync forces React to paint the transcript immediately, before onend
+      // can batch a setInput("") that would erase it before the user sees it.
+      flushSync(() => setInput(transcript));
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+        textareaRef.current.style.height =
+          Math.min(Math.max(textareaRef.current.scrollHeight, 45), 120) + "px";
+      }
+    };
+
+    recognition.onend = () => {
+      console.log("[STT] ended, transcript:", transcriptRef.current);
+      setIsListening(false);
+      const final = transcriptRef.current;
+      transcriptRef.current = "";
+      if (final.trim()) {
+        sendMessage(final.trim());
+      }
+    };
+
+    recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
+      console.error("[STT] error:", e.error);
+      setIsListening(false);
+      const messages: Record<string, string> = {
+        "no-speech":      "No speech detected. Please try again.",
+        "network":        "Speech service unavailable. Check your internet connection.",
+        "not-allowed":    "Microphone access denied. Allow it in browser settings.",
+        "audio-capture":  "No microphone found. Check your device.",
+        "service-not-allowed": "Speech service blocked. Try enabling it in browser settings.",
+        "aborted":        "",
+      };
+      const msg = messages[e.error] ?? "Speech recognition failed. Please try again.";
+      if (msg) {
+        setSttError(msg);
+        setTimeout(() => setSttError(""), 5000);
+      }
+    };
+
+    try {
+      recognition.start();
+    } catch (err) {
+      console.error("[STT] failed to start:", err);
+      setIsListening(false);
+      setSttError("Could not start microphone. Please try again.");
+      setTimeout(() => setSttError(""), 5000);
+    }
+  };
+
   const showQuickSearches = messages.length === 1 && !isLoading;
 
   return (
@@ -345,7 +432,10 @@ export default function App({ onClose }: { onClose?: () => void }) {
 
       {/* Input */}
       <div className="shrink-0 px-4 py-3 border-t border-gray-200 bg-white">
-        <div className="flex items-end gap-2">
+        {sttError && (
+          <p className="text-xs text-red-500 mb-2 px-1">{sttError}</p>
+        )}
+        <div className="flex items-center gap-2">
           <textarea
             ref={textareaRef}
             value={input}
@@ -360,15 +450,35 @@ export default function App({ onClose }: { onClose?: () => void }) {
                 sendMessage();
               }
             }}
-            placeholder="Search properties or ask a question…"
+            placeholder={isListening ? "Listening…" : "Ask a question…"}
             rows={1}
             style={{ minHeight: '40px', borderRadius: '10px' }}
             className="flex-1 bg-gray-100 py-3 px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--ai-primary)]/50 focus:bg-white transition resize-none overflow-hidden"
           />
+          {supportsSTT && (
+            <button
+              onClick={toggleListening}
+              disabled={isLoading || !micAvailable}
+              title={
+                !micAvailable
+                  ? "Microphone requires HTTPS"
+                  : isListening
+                  ? "Stop recording"
+                  : "Speak your query"
+              }
+              className={`shrink-0 flex items-center justify-center h-9 w-9 rounded-full transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                isListening
+                  ? "bg-red-500 text-white animate-pulse"
+                  : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+              }`}
+            >
+              {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+            </button>
+          )}
           <button
             onClick={() => sendMessage()}
             disabled={isLoading || !input.trim()}
-            className="shrink-0 flex items-center justify-center h-9 w-9 rounded-full bg-[var(--ai-primary-hover)] text-white hover:bg-[var(--ai-secondary)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer mb-0.5"
+            className="shrink-0 flex items-center justify-center h-9 w-9 rounded-full bg-[var(--ai-primary-hover)] text-white hover:bg-[var(--ai-secondary)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             <Send size={16} />
           </button>
