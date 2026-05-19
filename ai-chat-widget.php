@@ -7,6 +7,18 @@
 
 if (!defined('ABSPATH')) exit;
 
+register_activation_hook(__FILE__, function () {
+    set_transient('ai_chat_widget_activated', true, 30);
+});
+
+add_action('admin_init', function () {
+    if (get_transient('ai_chat_widget_activated')) {
+        delete_transient('ai_chat_widget_activated');
+        wp_safe_redirect(admin_url('admin.php?page=ai-chat-widget'));
+        exit;
+    }
+});
+
 // ─── Admin settings page ──────────────────────────────────────────────────────
 
 add_action('admin_menu', function () {
