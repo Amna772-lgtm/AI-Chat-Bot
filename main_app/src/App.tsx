@@ -368,7 +368,7 @@ export default function App({ onClose }: { onClose?: () => void }) {
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4">
         <AnimatePresence initial={false}>
           {messages.map((msg, i) => (
             <motion.div

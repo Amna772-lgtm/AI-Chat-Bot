@@ -1,7 +1,7 @@
 <?php
 /**
- * Plugin Name: AI Chat Widget
- * Description: Floating AI chat assistant with secure server-side AI proxy and live Estatik queries
+ * Plugin Name: AI Property Assistant
+ * Description: Floating AI Property Assistant with secure server-side AI proxy and live Estatik queries
  * Version: 1.2
  */
 
@@ -23,8 +23,8 @@ add_action('admin_init', function () {
 
 add_action('admin_menu', function () {
     add_menu_page(
-        'AI Chat Settings',
-        'AI Chat',
+        'AI Property Assistant Settings',
+        'AI Property Assistant',
         'manage_options',
         'ai-chat-widget',
         'ai_chat_settings_page',
@@ -60,7 +60,7 @@ function ai_chat_settings_page(): void {
     $has_anthropic = !empty(get_option('ai_anthropic_api_key', ''));
     ?>
     <div class="wrap">
-        <h1>AI Chat Widget Settings</h1>
+        <h1>AI Property Assistant Settings</h1>
 
         <form method="post" action="options.php">
             <?php settings_fields('ai_chat_settings'); ?>
@@ -182,7 +182,7 @@ add_action('wp_footer', function () {
     echo '<div id="ai-chat-widget" style="' . $style . '"></div>';
 });
 
-// ─── AI Chat Proxy REST endpoint ──────────────────────────────────────────────
+// ─── AI Property Assistant Proxy REST endpoint ──────────────────────────────────────────────
 
 add_action('rest_api_init', function () {
     register_rest_route('ai/v1', '/chat', [
@@ -897,7 +897,7 @@ function ai_proxy_handler(WP_REST_Request $request): WP_REST_Response {
     $api_key = get_option('ai_anthropic_api_key', '');
 
     if (empty($api_key)) {
-        return new WP_REST_Response(['type' => 'error', 'message' => 'AI not configured. Go to AI Chat in the WordPress admin sidebar to enter your API key.'], 503);
+        return new WP_REST_Response(['type' => 'error', 'message' => 'AI not configured. Go to AI Property Assistant in the WordPress admin sidebar to enter your API key.'], 503);
     }
 
     $body    = $request->get_json_params() ?? [];
@@ -968,19 +968,22 @@ function ai_proxy_claude(string $api_key, string $text, array $history): WP_REST
         }
 
         // Execute tool calls server-side
-        $tool_results = [];
+        $tool_results    = [];
+        $batch_properties = [];
         foreach ($data['content'] as $block) {
             if ($block['type'] !== 'tool_use') continue;
             $block_args = (array)($block['input'] ?? []);
             if ($block['name'] === 'search_properties') $search_calls[] = $block_args;
-            $tool_output     = ai_execute_tool($block['name'], $block_args);
-            $all_properties  = array_merge($all_properties, $tool_output['properties']);
-            $tool_results[]  = [
+            $tool_output       = ai_execute_tool($block['name'], $block_args);
+            $batch_properties  = array_merge($batch_properties, $tool_output['properties']);
+            $tool_results[]    = [
                 'type'        => 'tool_result',
                 'tool_use_id' => $block['id'],
                 'content'     => wp_json_encode($tool_output['result']),
             ];
         }
+        // Overwrite (not accumulate) so cards always reflect the latest tool call batch
+        $all_properties = $batch_properties;
         $messages[] = ['role' => 'user', 'content' => $tool_results];
     }
 
@@ -1009,7 +1012,12 @@ function ai_build_search_url(array $args): string {
     if (!empty($args['max_price']))     $params['max_price']     = (string)(int)$args['max_price'];
     if (!empty($args['min_area']))      $params['min_area']      = (string)(int)$args['min_area'];
     if (!empty($args['max_area']))      $params['max_area']      = (string)(int)$args['max_area'];
-    if (!empty($args['property_type'])) $params['es_type']       = $args['property_type'];
+    if (!empty($args['property_type'])) {
+        $type_ids = get_terms(['taxonomy' => 'es_type', 'search' => $args['property_type'], 'fields' => 'ids', 'hide_empty' => false, 'number' => 1]);
+        if (!empty($type_ids) && !is_wp_error($type_ids)) {
+            $params['es_type'] = (int)$type_ids[0];
+        }
+    }
     if (!empty($args['bedrooms']))      $params['from_bedrooms'] = (string)(int)$args['bedrooms'];
     if (!empty($args['status'])) {
         $is_rent  = str_contains(strtolower($args['status']), 'rent');
