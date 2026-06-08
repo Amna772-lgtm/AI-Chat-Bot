@@ -54,6 +54,47 @@ function stripEmoji(text: string): string {
     .trim();
 }
 
+// Panama place-name grammar hints for the Web Speech API (JSGF format).
+// Biases Chrome/Edge's speech engine toward local place names before transcription.
+// Other browsers silently ignore it. Update place names here as needed.
+const PANAMA_SPEECH_GRAMMAR = `#JSGF V1.0;
+grammar panama_locations;
+public <place> =
+  Boquete | Alto Boquete | Bajo Boquete | Jaramillo | Valle Escondido | Lucero |
+  Los Molinos | Boquete Canyon Village |
+  David | Volcan | Volcan Baru | Cerro Punta | Dolega | Gualaca |
+  Potrerillos | Potrerillos Arriba | Potrerillos Abajo | Palmira | Caldera |
+  Chiriqui | Bugaba | La Concepcion | Concepcion | Paso Ancho | Renacimiento |
+  Puerto Armuelles | Boca Chica | Las Lajas | Playa Las Lajas | San Felix |
+  Tole | Remedios | Alanje | Golfo de Chiriqui | Isla Boca Brava | Isla Parida |
+  Pedasi | Playa Venao | Cambutal | Las Tablas | Chitre | Herrera |
+  Los Santos | Mariato | Coiba | Coiba Island | Aguadulce | Penonome |
+  El Valle de Anton | Anton | Cocle | Santa Fe | Sona | Santiago | Veraguas |
+  Coronado | Playa Coronado | Gorgona | Nueva Gorgona | Punta Barco |
+  San Carlos | El Palmar | Rio Hato | Buenaventura | Farallon |
+  Playa Blanca | Bijao | Santa Clara | Playa Santa Clara | Playa Farallon |
+  Playa El Palmar | Playa Gorgona | Punta Chame | Playa Punta Chame |
+  Playa Bonita | Playa Escondida | Chame | Capira | Veracruz |
+  Buenaventura Golf and Beach Resort |
+  Panama City | Casco Viejo | Casco Antiguo | San Felipe | Bella Vista |
+  El Cangrejo | Obarrio | Marbella | Punta Paitilla | Paitilla |
+  Punta Pacifica | Costa del Este | Costa Sur | Coco del Mar |
+  San Francisco | Rio Abajo | Parque Lefevre | Juan Diaz | Costa Verde |
+  Albrook | Clayton | Ancon | Balboa Avenue | Avenida Balboa | Amador |
+  Causeway | Calzada de Amador | Ancon Hill | Cerro Ancon |
+  Panama Canal | Canal de Panama | Miraflores | Gamboa | Soberania | Summit |
+  Tocumen | Pacora | Chepo | Panama Oeste | Arraijan | La Chorrera |
+  Taboga | Isla Taboga | Pearl Islands | Contadora | Saboga |
+  Ocean Reef Islands | Ocean Reef | The Ocean Club | Costa del Mar |
+  JW Marriott Panama | Trump Tower Panama | Soho City Center |
+  Condado del Rey |
+  Bocas del Toro | Isla Colon | Bastimentos | Carenero | Red Frog Beach |
+  Bluff Beach | Starfish Beach | Boca del Drago | Changuinola | Almirante |
+  Isla Solarte | Isla Cristobal | Portobelo | Colon | Isla Grande |
+  Nombre de Dios | Guna Yala | San Blas | Kuna Yala | Isla Perro |
+  Cayos Holandeses | Playa Bluff | Cocle del Norte;
+`;
+
 // Renders plain text with **bold** and [link](url) markdown parsed into elements
 function renderText(text: string): React.ReactNode {
   const parts = text.split(/(\*\*[^*\n]+\*\*|\[[^\]\n]+\]\([^)\n]+\))/g);
@@ -207,7 +248,7 @@ export default function App({ onClose }: { onClose?: () => void }) {
     setChat(createChat());
   }, []);
 
-  const sendMessage = async (text?: string) => {
+  const sendMessage = async (text?: string, fromVoice = false) => {
     const userMsg = (text || input).trim();
     if (!userMsg || isLoading) return;
 
@@ -221,7 +262,7 @@ export default function App({ onClose }: { onClose?: () => void }) {
     setMessages(withUser);
 
     try {
-      const { text: responseText, properties, searchUrl } = await chat.sendUserMessage(userMsg);
+      const { text: responseText, properties, searchUrl } = await chat.sendUserMessage(userMsg, fromVoice);
       const modelMsg: Message = {
         role: "model",
         content:
@@ -264,6 +305,16 @@ export default function App({ onClose }: { onClose?: () => void }) {
     recognition.lang = "en-US";
     recognition.interimResults = true;
     recognition.continuous = false;
+    // Attach Panama place-name grammar hints (Chrome/Edge only; others silently ignore)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const SpeechGrammarList = (window as any).SpeechGrammarList ?? (window as any).webkitSpeechGrammarList;
+      if (SpeechGrammarList) {
+        const gl = new SpeechGrammarList();
+        gl.addFromString(PANAMA_SPEECH_GRAMMAR, 1);
+        recognition.grammars = gl;
+      }
+    } catch { /* grammar hints are advisory — ignore any errors */ }
     recognitionRef.current = recognition;
     transcriptRef.current = "";
 
@@ -298,7 +349,7 @@ export default function App({ onClose }: { onClose?: () => void }) {
       const final = transcriptRef.current;
       transcriptRef.current = "";
       if (final.trim()) {
-        sendMessage(final.trim());
+        sendMessage(final.trim(), true);
       }
     };
 

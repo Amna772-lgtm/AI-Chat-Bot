@@ -47,7 +47,7 @@ export interface PropertyResult {
 }
 
 export interface ChatService {
-  sendUserMessage(message: string): Promise<{ text: string; properties: PropertyResult[]; searchUrl?: string | null }>;
+  sendUserMessage(message: string, voice?: boolean): Promise<{ text: string; properties: PropertyResult[]; searchUrl?: string | null }>;
   getHistory(): unknown[];
 }
 
@@ -71,9 +71,10 @@ class ProxyChat implements ChatService {
   }
 
   async sendUserMessage(
-    message: string
+    message: string,
+    voice = false
   ): Promise<{ text: string; properties: PropertyResult[]; searchUrl?: string | null }> {
-    const response = await this.post({ text: message, history: this.history });
+    const response = await this.post({ text: message, history: this.history, ...(voice ? { voice: true } : {}) });
 
     if (response.type === "error") throw new Error(response.message);
 

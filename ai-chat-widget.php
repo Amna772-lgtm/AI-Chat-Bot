@@ -7,6 +7,256 @@
 
 if (!defined('ABSPATH')) exit;
 
+// ─── Panama voice-transcript correction map ───────────────────────────────────
+// Case-insensitive regex patterns → canonical place name.
+// Applied only when the request payload includes voice:true.
+// More-specific multi-word patterns MUST appear before single-word fallbacks.
+define('AI_PANAMA_VOICE_CORRECTIONS', [
+    // Alto / Bajo Boquete (before generic Boquete patterns)
+    '/\balto\s+(bouquet|bokete|bucket|bo\s*k[ae]t[ae]|bo\s*kay\s*tay)\b/i' => 'Alto Boquete',
+    '/\bbajo\s+(bouquet|bokete|bucket|bo\s*k[ae]t[ae]|bo\s*kay\s*tay)\b/i' => 'Bajo Boquete',
+    // Boquete
+    '/\bbouquet\b/i'                             => 'Boquete',
+    '/\bbucket\b/i'                              => 'Boquete',
+    '/\bbokete\b/i'                              => 'Boquete',
+    '/\bbo\s*k[ae]t[ae]\b/i'                    => 'Boquete',
+    '/\bbo\s*kay\s*tay\b/i'                     => 'Boquete',
+    '/\bbo\s*ket\b/i'                            => 'Boquete',
+    // David
+    '/\bdah?\s*vid\b/i'                          => 'David',
+    '/\bdaveed\b/i'                              => 'David',
+    // Volcán Barú (before single Volcán)
+    '/\bvolcan[o]?\s+bar[ou]\b/i'               => 'Volcán Barú',
+    '/\bvolkan\s+bar[ou]\b/i'                   => 'Volcán Barú',
+    // Volcán
+    '/\bvolcano\b/i'                             => 'Volcán',
+    '/\bvolkan\b/i'                              => 'Volcán',
+    '/\bvolcan\b/i'                              => 'Volcán',
+    // Cerro Punta
+    '/\bzero\s+punta\b/i'                        => 'Cerro Punta',
+    '/\bserro\s+punta\b/i'                       => 'Cerro Punta',
+    '/\bcerro\s+punto\b/i'                       => 'Cerro Punta',
+    // Dolega
+    '/\bdollega\b/i'                             => 'Dolega',
+    '/\bdo\s+lega\b/i'                           => 'Dolega',
+    // Gualaca
+    '/\bwalaka\b/i'                              => 'Gualaca',
+    '/\bgua\s+laka\b/i'                          => 'Gualaca',
+    // Potrerillos
+    '/\bpotrerrillos\b/i'                        => 'Potrerillos',
+    '/\bpotreros\b/i'                            => 'Potrerillos',
+    '/\bpotre\s+rillos\b/i'                      => 'Potrerillos',
+    // Jaramillo
+    '/\bharamillo\b/i'                           => 'Jaramillo',
+    '/\bharameeyo\b/i'                           => 'Jaramillo',
+    // Chiriquí
+    '/\bcherokee\b/i'                            => 'Chiriquí',
+    '/\bchiri\s*ki\b/i'                         => 'Chiriquí',
+    '/\bchiriqui\b/i'                            => 'Chiriquí',
+    // Puerto Armuelles
+    '/\bpuerto\s+arm\s*wells\b/i'               => 'Puerto Armuelles',
+    '/\bpuerto\s+arm\s*uayes\b/i'              => 'Puerto Armuelles',
+    // Boca Chica
+    '/\bboca\s+cheeka\b/i'                       => 'Boca Chica',
+    // Las Lajas
+    '/\blas\s+lahas\b/i'                         => 'Las Lajas',
+    '/\blas\s+largas\b/i'                        => 'Las Lajas',
+    // Pedasí
+    '/\bpeda\s+see\b/i'                          => 'Pedasí',
+    '/\bpedasy\b/i'                              => 'Pedasí',
+    '/\bpedasi\b/i'                              => 'Pedasí',
+    // Playa Venao (before standalone venao/venado)
+    '/\bplaya\s+venado\b/i'                      => 'Playa Venao',
+    '/\bvenado\b/i'                              => 'Playa Venao',
+    '/\bvenao\b/i'                               => 'Playa Venao',
+    // Cambutal
+    '/\bcam\s*bootal\b/i'                        => 'Cambutal',
+    '/\bcambotal\b/i'                            => 'Cambutal',
+    // El Valle de Antón (most specific first)
+    '/\banton\s+valley\b/i'                      => 'El Valle de Antón',
+    '/\bel\s+valle\s+de\s+anton\b/i'            => 'El Valle de Antón',
+    '/\bvalle\s+de\s+anton\b/i'                 => 'El Valle de Antón',
+    // Coronado
+    '/\bcrownado\b/i'                            => 'Coronado',
+    '/\bcoranado\b/i'                            => 'Coronado',
+    // Nueva Gorgona (before standalone gorgona)
+    '/\bnew\s+gorgona\b/i'                       => 'Nueva Gorgona',
+    // Punta Barco
+    '/\bpunta\s+barca\b/i'                       => 'Punta Barco',
+    // San Carlos
+    '/\bsaint\s+carlos\b/i'                      => 'San Carlos',
+    // Río Hato
+    '/\brio\s+ato\b/i'                           => 'Río Hato',
+    // Buenaventura
+    '/\bbuena\s+ventura\b/i'                     => 'Buenaventura',
+    '/\bbuena\s+aventura\b/i'                    => 'Buenaventura',
+    // Farallón
+    '/\bfarayan\b/i'                             => 'Farallón',
+    '/\bfarayon\b/i'                             => 'Farallón',
+    '/\bfarallon\b/i'                            => 'Farallón',
+    // Playa Blanca
+    '/\bwhite\s+beach\b/i'                       => 'Playa Blanca',
+    // Bijao
+    '/\bbee\s*ha[ow]\b/i'                        => 'Bijao',
+    '/\bbee\s*how\b/i'                           => 'Bijao',
+    // Panama City
+    '/\bciudad\s+de\s+panam[aá]\b/i'            => 'Panama City',
+    // Casco Antiguo (before Casco Viejo and standalone casco)
+    '/\bcasco\s+anti[gq]uo\b/i'                 => 'Casco Antiguo',
+    // Casco Viejo
+    '/\bold\s+town\b/i'                          => 'Casco Viejo',
+    '/\bcasco\s+viejo\b/i'                       => 'Casco Viejo',
+    // "casco" alone — negative lookahead prevents matching inside already-replaced "Casco Viejo/Antiguo"
+    '/\bcasco\b(?!\s*(viejo|antiguo))/i'         => 'Casco Viejo',
+    // San Felipe
+    '/\bsaint\s+felipe\b/i'                      => 'San Felipe',
+    // Bella Vista
+    '/\bbellavista\b/i'                          => 'Bella Vista',
+    // El Cangrejo
+    '/\bcangrejo\b/i'                            => 'El Cangrejo',
+    '/\bel\s*kan\s*grejo\b/i'                   => 'El Cangrejo',
+    // Obarrio
+    '/\bo\s+barrio\b/i'                          => 'Obarrio',
+    // Pacora
+    '/\bpacora\b/i'                              => 'Pacora',
+    '/\bpakora\b/i'                              => 'Pacora',
+    // Marbella
+    '/\bmar\s+bella\b/i'                         => 'Marbella',
+    '/\bmarble\s*y[ao]\b/i'                      => 'Marbella',
+    // Punta Paitilla (before standalone paitilla)
+    '/\bpunta\s+(paita|paitiya|pai?till?[ao])\b/i' => 'Punta Paitilla',
+    '/\bpaita\b/i'                               => 'Paitilla',
+    '/\bpaitiya\b/i'                             => 'Paitilla',
+    // Punta Pacífica (longest/most specific first)
+    '/\bpunta\s+pacific[ao]\s+panama\b/i'       => 'Punta Pacífica',
+    '/\bpunta\s+pacific[ao]?\b/i'               => 'Punta Pacífica',
+    // Costa del Este
+    '/\bcosta\s+este\b/i'                        => 'Costa del Este',
+    '/\beast\s+coast\s+panama\b/i'              => 'Costa del Este',
+    // Costa Sur
+    '/\bsouth\s+coast\b/i'                       => 'Costa Sur',
+    // Coco del Mar
+    '/\bcoco\s+mar\b/i'                          => 'Coco del Mar',
+    // San Francisco
+    '/\bsaint\s+francis\b/i'                     => 'San Francisco',
+    '/\bsan\s+fran\b/i'                          => 'San Francisco',
+    // Río Abajo
+    '/\brio\s+abaho\b/i'                         => 'Río Abajo',
+    // Parque Lefevre
+    '/\bparque\s+lefebre\b/i'                    => 'Parque Lefevre',
+    '/\blefebre\b/i'                             => 'Parque Lefevre',
+    '/\blefevre\b/i'                             => 'Parque Lefevre',
+    // Juan Díaz
+    '/\bjuan\s+d[ií][ae]s?\b/i'                 => 'Juan Díaz',
+    '/\bjuan\s+dee\s*az\b/i'                     => 'Juan Díaz',
+    // Albrook
+    '/\bal\s+brooke?\b/i'                        => 'Albrook',
+    // Clayton
+    '/\bcleyton\b/i'                             => 'Clayton',
+    // Ancón
+    '/\bancone\b/i'                              => 'Ancón',
+    '/\bancon\b/i'                               => 'Ancón',
+    // Cerro Ancón (before generic ancon)
+    '/\bancon\s+hill\b/i'                        => 'Cerro Ancón',
+    '/\banc[oó]n\s+hill\b/i'                    => 'Cerro Ancón',
+    // Avenida Balboa
+    '/\bave\s+balboa\b/i'                        => 'Avenida Balboa',
+    '/\bbalboa\s+ave(nue)?\b/i'                 => 'Avenida Balboa',
+    // Amador (causeway/calzada variants)
+    '/\bcalzada\s+de\s+amador\b/i'              => 'Amador',
+    '/\bcauseway\b/i'                            => 'Amador',
+    // Miraflores
+    '/\bmira\s+flores\b/i'                       => 'Miraflores',
+    // Gamboa
+    '/\bgam\s+boa\b/i'                           => 'Gamboa',
+    // Tocumen
+    '/\btokumen\b/i'                             => 'Tocumen',
+    // Chepo
+    '/\bcheapo\b/i'                              => 'Chepo',
+    // Panamá Oeste
+    '/\bwest\s+panama\b/i'                       => 'Panamá Oeste',
+    '/\bpanama\s+oeste\b/i'                      => 'Panamá Oeste',
+    // Arraiján
+    '/\barray\s*han\b/i'                         => 'Arraiján',
+    '/\barraijan\b/i'                            => 'Arraiján',
+    // Chame
+    '/\bcha\s*may\b/i'                           => 'Chame',
+    '/\bchah?\s*meh?\b/i'                        => 'Chame',
+    // Capira
+    '/\bcapeera\b/i'                             => 'Capira',
+    // Veracruz
+    '/\bvera\s+cruz\b/i'                         => 'Veracruz',
+    // Taboga
+    '/\btaboga\s+island\b/i'                     => 'Taboga',
+    // Contadora
+    '/\bcontador\b/i'                            => 'Contadora',
+    // Bocas del Toro — multi-word first, then standalone "bocas"
+    '/\bbocas?\s+del\s+toro\b/i'                => 'Bocas del Toro',
+    '/\bbocas\b(?!\s+del)/i'                    => 'Bocas del Toro',
+    // Isla Colón
+    '/\bcolon\s+island\b/i'                      => 'Isla Colón',
+    '/\bisla\s+colon\b/i'                        => 'Isla Colón',
+    // Bastimentos
+    '/\bbastee\s*mentos\b/i'                     => 'Bastimentos',
+    // Carenero
+    '/\bcaranero\b/i'                            => 'Carenero',
+    // Red Frog Beach
+    '/\bred\s+frog\b/i'                          => 'Red Frog Beach',
+    // Bluff Beach
+    '/\bplaya\s+bluff\b/i'                       => 'Bluff Beach',
+    // Starfish Beach
+    '/\bplaya\s+estrella\b/i'                    => 'Starfish Beach',
+    // Boca del Drago
+    '/\bdrago\b/i'                               => 'Boca del Drago',
+    // Changuinola
+    '/\bchan[gk]in[ao]la\b/i'                   => 'Changuinola',
+    '/\bchan[gk]uin[ao]la\b/i'                  => 'Changuinola',
+    // Almirante
+    '/\bal\s+mirante\b/i'                        => 'Almirante',
+    // Portobelo
+    '/\bporto\s+belo\b/i'                        => 'Portobelo',
+    // Colón
+    '/\bcologne\b/i'                             => 'Colón',
+    // Nombre de Dios
+    '/\bnombre\s+dios\b/i'                       => 'Nombre de Dios',
+    // Guna Yala / Kuna Yala / San Blas (interchangeable in user's list)
+    '/\bkuna\s+yala\b/i'                         => 'Kuna Yala',
+    '/\bguna\s+yala\b/i'                         => 'Guna Yala',
+    '/\bsan\s+blas\b/i'                          => 'San Blas',
+    // Playa Bonita
+    '/\bbonita\s+beach\b/i'                      => 'Playa Bonita',
+    // Punta Chame
+    '/\bpunta\s+cha\s*may\b/i'                  => 'Punta Chame',
+    // Isla Boca Brava
+    '/\bboca\s+brava\b/i'                        => 'Isla Boca Brava',
+    // Valle Escondido
+    '/\bhidden\s+valley\b/i'                     => 'Valle Escondido',
+    '/\bvalley\s+escondido\b/i'                 => 'Valle Escondido',
+    // Golfo de Chiriquí
+    '/\bgulf\s+of\s+chiriqui\b/i'               => 'Golfo de Chiriquí',
+    '/\bgolfo\s+de\s+chiriqui\b/i'              => 'Golfo de Chiriquí',
+    // Santa María
+    '/\bsanta\s+maria\b/i'                       => 'Santa María',
+    // Los Molinos
+    '/\bmolinos\b/i'                             => 'Los Molinos',
+    // Santa María
+    '/\bsanta\s+maria\b/i'                       => 'Santa María',
+    '/\bsanta\s+mar[ií]a\b/i'                    => 'Santa María',
+    // Ocean Reef
+    '/\bocean\s+reefs?\b/i'                      => 'Ocean Reef',
+    // The Ocean Club (JW Marriott / former Trump Tower)
+    '/\bthe\s+ocean\s+club\b/i'                  => 'The Ocean Club',
+    '/\bocean\s+club\b/i'                        => 'The Ocean Club',
+    '/\bjw\s+marriott\b/i'                       => 'The Ocean Club',
+    '/\btrump\s+tower\b/i'                       => 'The Ocean Club',
+    // Costa del Mar
+    '/\bcosta\s+del\s+mar\b/i'                   => 'Costa del Mar',
+    // Buenaventura Golf & Beach Resort
+    '/\bbuenaventura\s+golf\b/i'                 => 'Buenaventura Golf & Beach Resort',
+    '/\bbuenaventura\s+resort\b/i'               => 'Buenaventura Golf & Beach Resort',
+    '/\bbuenaventura\b/i'                        => 'Buenaventura Golf & Beach Resort',
+]);
+
 register_activation_hook(__FILE__, function () {
     set_transient('ai_chat_widget_activated', true, 30);
 });
@@ -235,6 +485,13 @@ function ai_proxy_rate_limit(): bool {
     return true;
 }
 
+function ai_normalize_voice_transcript(string $text): string {
+    foreach (AI_PANAMA_VOICE_CORRECTIONS as $pattern => $replacement) {
+        $text = preg_replace($pattern, $replacement, $text);
+    }
+    return $text;
+}
+
 function ai_system_prompt(): string {
     return 'You are a friendly property consultant at House Hunter Panama.
 Today: ' . current_time('l, F j, Y') . '
@@ -248,14 +505,60 @@ Website: ' . home_url() . '
 - Mirror the user\'s energy — casual if they\'re casual, detailed if they ask for detail
 - Show genuine interest: "That\'s a great area for sunsets!" or "Good call, Boquete is very popular with retirees"
 
-## Panama context (use naturally in conversation, don\'t list it all at once)
-- No capital gains tax on primary residences
-- Pensionado visa: up to 50% discounts on health, transport, entertainment
-- Panama City: strong rental yields (4–8%), cosmopolitan, walkable
-- Coronado: beach town, ~90 min from Panama City, popular with expats
-- Boquete: cool mountain climate, coffee farms, big retiree community
-- Bugaba/La Concepción: affordable, agricultural region, hidden gem
-- Currency: USD (Panama is fully dollarized)
+## Panama location context (use naturally — never dump the whole list; draw on it as needed)
+
+**Key facts:** Currency USD (fully dollarized). No capital gains tax on primary residences. Pensionado visa: up to 50% discounts on health, transport, entertainment.
+
+**Chiriquí Province (western highlands & coast)**
+- Boquete (incl. Alto Boquete, Bajo Boquete, Jaramillo, Los Molinos, Valle Escondido, Lucero): cool mountain climate ~1,000 m, coffee farms, the largest expat/retiree community in Panama; notable projects: Boquete Canyon Village, Hacienda Los Molinos
+- David: Chiriquí province capital, main commercial hub, 40 min from Boquete
+- Volcán / Volcán Barú / Cerro Punta: high-altitude mountain towns (~1,450–2,000 m) near the volcano; cooler than Boquete, strawberry farms, hiking
+- Dolega / Potrerillos (Arriba & Abajo) / Palmira / Caldera / Gualaca: rural Chiriquí valleys between David and Boquete
+- Bugaba / La Concepción / Paso Ancho / Renacimiento: affordable western Chiriquí, agricultural, near Costa Rica border
+- Puerto Armuelles: Pacific port town, banana history, emerging beach scene
+- Boca Chica / Las Lajas / Playa Las Lajas / San Félix / Tolé / Remedios / Alanje: Gulf of Chiriquí coast; Boca Chica is gateway to Isla Boca Brava & Isla Parida; Golfo de Chiriquí has sport fishing and marine park access
+
+**Azuero Peninsula & Central Provinces**
+- Pedasí / Playa Venao / Cambutal: Azuero Pacific coast; surf, whale-watching (Jul–Oct), boutique eco-lodges, increasingly popular with investors
+- Las Tablas / Chitré / Los Santos / Herrera: traditional Panamanian heartland; Chitré is the regional hub, Las Tablas is famous for Carnaval
+- Mariato / Soná / Santa Fe / Veraguas: Veraguas province; gateway to Coiba Island (UNESCO marine park)
+- Coiba / Coiba Island: world-class diving, remote, protected national park off Veraguas coast
+- Santiago: Veraguas province capital; commercial stop on the Pan-American Highway
+- Aguadulce / Penonomé / El Valle de Antón (also: Valle de Antón, Anton Valley) / Antón / Coclé: Coclé province; El Valle de Antón is a crater-valley weekend retreat, cooler temperatures, arts market; Coclé del Norte is a Caribbean-side community
+
+**Pacific Riviera (Panama City corridor)**
+- Chame / Punta Chame / Capira / Veracruz: 45–60 min from Panama City; Punta Chame is a kitesurfing hotspot
+- Gorgona / Nueva Gorgona / Punta Barco / San Carlos / El Palmar: 60–75 min; established Pacific beach communities with year-round residents and weekend homes
+- Coronado / Playa Coronado: ~90 min from Panama City; the most developed Pacific beach town, large expat community, golf, supermarkets, hospitals
+- Río Hato / Buenaventura / Farallón / Playa Blanca / Bijao / Santa Clara / Playa Santa Clara / Playa Farallón: ~2 hrs; resort corridor; Buenaventura is a luxury master-planned golf & beach community; Playa Blanca and Bijao are all-inclusive beach resorts
+- Playa Bonita / Playa Escondida: 20 min west of Panama City on the Pacific coast
+
+**Panama City (capital)**
+- Historic quarter: Casco Viejo (also Casco Antiguo / San Felipe) — UNESCO-listed colonial district; boutique hotels, restaurants, renovated apartments; strong rental demand
+- Upscale waterfront: Punta Paitilla / Paitilla, Punta Pacífica — luxury high-rise towers with ocean views; premium rents
+- Business & residential: Bella Vista, El Cangrejo, Obarrio, Marbella — walkable, central, mix of residential and commercial
+- Modern planned communities: Costa del Este, Costa Sur, Coco del Mar, Costa Verde — newer infrastructure, family-oriented, 15–25 min from downtown
+- Mid-range residential: San Francisco, Río Abajo, Parque Lefevre, Juan Díaz — good value, established neighborhoods east of downtown
+- Former Canal Zone: Albrook (mall, domestic airport), Clayton (university, tech park), Ancón, Balboa, Cerro Ancón — green, quiet, close to city
+- Waterfront entertainment: Amador / Causeway / Calzada de Amador — restaurants, marina, Biomuseo; also Avenida Balboa (bay-front promenade)
+- Canal corridor: Miraflores (locks), Gamboa (rainforest), Soberanía (national park), Summit (wildlife refuge)
+- East metro: Tocumen (international airport area), Pacora, Chepo — more affordable, longer commute
+- West metro (Panamá Oeste): Arraiján, La Chorrera — suburban, significantly cheaper than Panama City proper
+- Nearby islands: Taboga (Isla Taboga) — 1 hr ferry, popular day-trip & weekend retreat; Pearl Islands (Archipiélago de las Perlas), Contadora, Saboga — private-island feel, 30-min flight
+- Rental yields: 4–8% in Panama City; strongest demand in Punta Paitilla, Costa del Este, San Francisco, Casco Viejo
+- Notable buildings/projects: Ocean Reef Islands, Ocean Reef, The Ocean Club, JW Marriott Panama, Trump Tower Panama, Soho City Center, Costa del Mar
+
+**Bocas del Toro (Caribbean)**
+- Isla Colón (main hub with Bocas Town): restaurants, hostels, surf, nightlife
+- Bastimentos: Red Frog Beach, Bluff Beach, Playa Bluff, Old Bank village
+- Carenero, Isla Solarte, Isla Cristóbal, Boca del Drago, Starfish Beach: quieter island living
+- Changuinola / Almirante: mainland gateway, banana region, not a tourist destination
+
+**Caribbean coast (Colón & Atlantic)**
+- Portobelo: UNESCO colonial fortress ruins, diving, expat artists\' community
+- Colón: major port city and free-trade zone; not a lifestyle destination
+- Isla Grande / Nombre de Dios: undeveloped Caribbean beach villages
+- Guna Yala / Kuna Yala / San Blas: autonomous indigenous comarca; 365 coral islands; Isla Perro, Cayos Holandeses are popular anchorages; properties cannot be purchased by non-Guna, but long-term leases exist
 
 ## Conversation style
 - Start by understanding what they want BEFORE searching. Ask one focused question if unclear.
@@ -326,10 +629,10 @@ function ai_claude_tools(): array {
             'input_schema' => [
                 'type'       => 'object',
                 'properties' => [
-                    'city'          => ['type' => 'string', 'description' => "City slug: 'panama-city', 'coronado', 'boquete', 'bugaba-la-concepcion'. Empty = all cities."],
+                    'city'          => ['type' => 'string', 'description' => "City slug from es_location taxonomy. Common slugs: 'panama-city', 'coronado', 'boquete', 'bugaba-la-concepcion', 'david', 'volcan', 'cerro-punta', 'el-valle-de-anton', 'pedasi', 'las-tablas', 'chitre', 'santiago', 'aguadulce', 'penonome', 'anton', 'farallon', 'santa-clara', 'rio-hato', 'san-carlos', 'nueva-gorgona', 'gorgona', 'chame', 'bocas-del-toro', 'colon', 'portobelo', 'la-chorrera', 'arraijan', 'capira', 'taboga', 'contadora'. Use list_available_cities to confirm exact slugs. Empty = all cities."],
                     'property_type' => ['type' => 'string', 'description' => "Property type keyword: 'apartment', 'house', 'condo', 'land', 'commercial', 'villa'. Case-insensitive."],
                     'category'      => ['type' => 'string', 'description' => 'Property category keyword (e.g. residential, commercial, vacation).'],
-                    'neighborhood'  => ['type' => 'string', 'description' => 'Neighborhood name keyword (e.g. Paitilla, El Cangrejo, Marbella, Punta Pacifica).'],
+                    'neighborhood'  => ['type' => 'string', 'description' => 'Neighborhood name keyword. Panama City: Paitilla, Punta Paitilla, Punta Pacífica, El Cangrejo, Marbella, Obarrio, Bella Vista, Casco Viejo, Casco Antiguo, San Felipe, Costa del Este, Costa Sur, Coco del Mar, San Francisco, Río Abajo, Parque Lefevre, Juan Díaz, Costa Verde, Albrook, Clayton, Ancón, Balboa, Amador, Causeway, Miraflores, Gamboa, Tocumen. Other regions: Valle Escondido, Jaramillo (Boquete area).'],
                     'status'        => ['type' => 'string', 'description' => "REQUIRED when user mentions rent/rental/to rent (use 'for_rent') or buy/purchase/for sale (use 'for_sale'). Never omit when intent is clear."],
                     'min_price'     => ['type' => 'number', 'description' => 'Minimum price USD.'],
                     'max_price'     => ['type' => 'number', 'description' => 'Maximum price USD.'],
@@ -355,7 +658,7 @@ function ai_claude_tools(): array {
             'input_schema' => [
                 'type'       => 'object',
                 'properties' => [
-                    'city_slug' => ['type' => 'string', 'description' => "City slug: 'panama-city', 'coronado', 'boquete', 'bugaba-la-concepcion'."],
+                    'city_slug' => ['type' => 'string', 'description' => "City slug from the es_location taxonomy. Run list_available_cities first if unsure of the exact slug."],
                 ],
                 'required'   => ['city_slug'],
             ],
@@ -937,6 +1240,7 @@ function ai_proxy_handler(WP_REST_Request $request): WP_REST_Response {
     $body    = $request->get_json_params() ?? [];
     $text    = sanitize_textarea_field($body['text'] ?? '');
     $history = is_array($body['history'] ?? null) ? $body['history'] : [];
+    $text = ai_normalize_voice_transcript($text);
 
     return ai_proxy_claude($api_key, $text, $history);
 }
