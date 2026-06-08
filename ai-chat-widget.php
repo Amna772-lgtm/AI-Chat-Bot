@@ -69,10 +69,18 @@ function ai_chat_settings_page(): void {
                 <tr>
                     <th scope="row"><label for="ai_anthropic_api_key">Anthropic API Key</label></th>
                     <td>
-                        <input type="password" id="ai_anthropic_api_key" name="ai_anthropic_api_key"
-                            style="width:50%" autocomplete="new-password"
-                            placeholder="<?php echo $has_anthropic ? '(saved — paste to replace)' : 'sk-ant-api03-...'; ?>"
-                            value="" />
+                    <?php if ($has_anthropic):
+                        $masked = ai_mask_api_key(get_option('ai_anthropic_api_key', ''));
+                    ?>
+                        <div style="display:flex;align-items:center;gap:8px">
+                            <input type="text" disabled style="width:50%" value="<?php echo esc_attr($masked); ?>" />
+                            <button type="submit" form="ai-unregister-form" class="button button-primary">Unregister</button>
+                        </div>
+                    <?php else: ?>
+                        <input type="text" id="ai_anthropic_api_key" name="ai_anthropic_api_key"
+                            style="width:50%" autocomplete="off"
+                            placeholder="sk-ant-api03-..." value="" />
+                    <?php endif; ?>
                     </td>
                 </tr>
                 <tr>
@@ -128,6 +136,12 @@ function ai_chat_settings_page(): void {
             <?php submit_button('Save Settings'); ?>
         </form>
     </div>
+    <?php if ($has_anthropic): ?>
+    <form id="ai-unregister-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+        <input type="hidden" name="action" value="ai_unregister_key" />
+        <?php wp_nonce_field('ai_unregister_key'); ?>
+    </form>
+    <?php endif; ?>
     <?php
 }
 
@@ -135,6 +149,19 @@ function ai_chat_settings_page(): void {
 add_filter('pre_update_option_ai_anthropic_api_key', function ($new, $old) {
     return $new === '' ? $old : $new;
 }, 10, 2);
+
+add_action('admin_post_ai_unregister_key', function () {
+    if (!current_user_can('manage_options')) wp_die('Unauthorized');
+    check_admin_referer('ai_unregister_key');
+    delete_option('ai_anthropic_api_key');
+    wp_safe_redirect(admin_url('admin.php?page=ai-chat-widget'));
+    exit;
+});
+
+function ai_mask_api_key(string $key): string {
+    $show = min(18, max(8, (int)(strlen($key) * 0.45)));
+    return substr($key, 0, $show) . '********';
+}
 
 function ai_derive_colors(string $hex): array {
     $hex = ltrim($hex, '#');
@@ -170,6 +197,13 @@ add_action('wp_enqueue_scripts', function () {
         'widgetSubtitle' => get_option('ai_widget_subtitle', 'Online · AI Property Assistant'),
     ]);
 });
+
+add_filter('script_loader_tag', function ($tag, $handle) {
+    if ($handle === 'ai-chat-script') {
+        return str_replace('<script ', '<script type="module" ', $tag);
+    }
+    return $tag;
+}, 10, 2);
 
 add_action('wp_footer', function () {
     $colors = ai_derive_colors(get_option('ai_primary_color', '#c2ab92'));
