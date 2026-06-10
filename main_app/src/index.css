@@ -22,3 +22,37 @@
   all: initial;
   font-family: inherit;
 }
+
+@keyframes teaser-in {
+  0%   { opacity: 0; transform: translateY(24px) scale(0.88); }
+  65%  { opacity: 1; transform: translateY(-5px) scale(1.02); }
+  100% { opacity: 1; transform: translateY(0)    scale(1); }
+}
+.animate-teaser-in {
+  animation: teaser-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.ai-teaser-bubble::after {
+  content: "";
+  position: absolute;
+  bottom: -8px;
+  right: 28px;
+  width: 0; height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid white;
+}
+
+@keyframes glow-breathe {
+  0%, 100% {
+    filter: drop-shadow(0 0 22px rgba(194,171,146,0.72))
+            drop-shadow(0 0 55px rgba(194,171,146,0.42));
+  }
+  50% {
+    filter: drop-shadow(0 0 38px rgba(194,171,146,1))
+            drop-shadow(0 0 80px rgba(194,171,146,0.68));
+  }
+}
+.ai-teaser-wrapper {
+  animation: glow-breathe 3s ease-in-out infinite;
+}

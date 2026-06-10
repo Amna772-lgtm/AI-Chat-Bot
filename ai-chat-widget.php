@@ -302,6 +302,15 @@ add_action('admin_init', function () {
     register_setting('ai_chat_settings', 'ai_claude_model', [
         'sanitize_callback' => fn($v) => in_array($v, ['claude-sonnet-4-6', 'claude-haiku-4-5-20251001'], true) ? $v : 'claude-sonnet-4-6',
     ]);
+    register_setting('ai_chat_settings', 'ai_teaser_enabled', [
+        'sanitize_callback' => fn($v) => $v ? '1' : '0',
+    ]);
+    register_setting('ai_chat_settings', 'ai_teaser_message', [
+        'sanitize_callback' => 'sanitize_textarea_field',
+    ]);
+    register_setting('ai_chat_settings', 'ai_teaser_delay', [
+        'sanitize_callback' => fn($v) => min(30, max(0, (int) $v)),
+    ]);
 });
 
 function ai_chat_settings_page(): void {
@@ -381,6 +390,28 @@ function ai_chat_settings_page(): void {
                         <p class="description">Sonnet gives better answers; Haiku responds faster and costs less.</p>
                     </td>
                 </tr>
+                <tr>
+                    <th scope="row">Teaser Bubble</th>
+                    <td>
+                        <fieldset>
+                            <label>
+                                <input type="checkbox" name="ai_teaser_enabled" value="1"
+                                    <?php checked(get_option('ai_teaser_enabled', '0'), '1'); ?> />
+                                Show a teaser message near the chat button
+                            </label>
+                            <br /><br />
+                            <label for="ai_teaser_message">Message</label><br />
+                            <textarea id="ai_teaser_message" name="ai_teaser_message"
+                                style="width:50%" rows="2"><?php echo esc_textarea(get_option('ai_teaser_message', '👋 Looking for a property in Panama? Ask me anything!')); ?></textarea>
+                            <br /><br />
+                            <label for="ai_teaser_delay">Delay (seconds, 0–30)</label><br />
+                            <input type="number" id="ai_teaser_delay" name="ai_teaser_delay"
+                                min="0" max="30" style="width:80px"
+                                value="<?php echo esc_attr(get_option('ai_teaser_delay', 3)); ?>" />
+                            <p class="description">How many seconds after page load before the bubble appears. Shows once per browser session.</p>
+                        </fieldset>
+                    </td>
+                </tr>
             </table>
 
             <?php submit_button('Save Settings'); ?>
@@ -424,18 +455,25 @@ function ai_derive_colors(string $hex): array {
 // ─── Enqueue assets ───────────────────────────────────────────────────────────
 
 add_action('wp_enqueue_scripts', function () {
-    $js  = glob(plugin_dir_path(__FILE__) . 'main_app/dist/assets/index-*.js');
-    $css = glob(plugin_dir_path(__FILE__) . 'main_app/dist/assets/index-*.css');
+    $js_files  = glob(plugin_dir_path(__FILE__) . 'main_app/dist/assets/index-*.js') ?: [];
+    $css_files = glob(plugin_dir_path(__FILE__) . 'main_app/dist/assets/index-*.css') ?: [];
+
+    // Always use the newest build artifact in case old hashed files weren't cleaned up.
+    usort($js_files,  fn($a, $b) => filemtime($b) - filemtime($a));
+    usort($css_files, fn($a, $b) => filemtime($b) - filemtime($a));
+
+    $js  = $js_files[0]  ?? null;
+    $css = $css_files[0] ?? null;
 
     if ($css) {
         wp_enqueue_style('ai-chat-style',
-            plugin_dir_url(__FILE__) . 'main_app/dist/assets/' . basename($css[0]),
-            [], filemtime($css[0]));
+            plugin_dir_url(__FILE__) . 'main_app/dist/assets/' . basename($css),
+            [], filemtime($css));
     }
     if ($js) {
         wp_enqueue_script('ai-chat-script',
-            plugin_dir_url(__FILE__) . 'main_app/dist/assets/' . basename($js[0]),
-            [], filemtime($js[0]), true);
+            plugin_dir_url(__FILE__) . 'main_app/dist/assets/' . basename($js),
+            [], filemtime($js), true);
     }
 
     wp_localize_script('ai-chat-script', 'aiChatConfig', [
@@ -445,6 +483,9 @@ add_action('wp_enqueue_scripts', function () {
         'widgetName'     => get_option('ai_widget_name', 'House Hunter Panama'),
         'welcomeMessage' => get_option('ai_welcome_message', "Hi! I'm your AI real estate assistant for Panama. How can I help you today?"),
         'widgetSubtitle' => get_option('ai_widget_subtitle', 'Online · AI Property Assistant'),
+        'teaserEnabled'  => get_option('ai_teaser_enabled', '0') === '1',
+        'teaserMessage'  => get_option('ai_teaser_message', '👋 Looking for a property in Panama? Ask me anything!'),
+        'teaserDelay'    => (int) get_option('ai_teaser_delay', 3),
     ]);
 });
 
