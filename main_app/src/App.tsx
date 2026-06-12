@@ -184,6 +184,10 @@ export default function App({ onClose }: { onClose?: () => void }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const transcriptRef = useRef("");
+  const autoSubmitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressSubmitRef  = useRef(false);
+  const finalTranscriptRef = useRef("");
+  const shouldStopRef      = useRef(false); // when true, next onend finalizes instead of restarting
   const supportsSTT =
     typeof window !== "undefined" &&
     ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
@@ -295,7 +299,9 @@ export default function App({ onClose }: { onClose?: () => void }) {
 
   const toggleListening = () => {
     if (isListening) {
-      recognitionRef.current?.stop();
+      shouldStopRef.current = true;
+      if (autoSubmitTimerRef.current) { clearTimeout(autoSubmitTimerRef.current); autoSubmitTimerRef.current = null; }
+      recognitionRef.current?.stop(); // onend will finalize and submit
       return;
     }
 
@@ -316,7 +322,9 @@ export default function App({ onClose }: { onClose?: () => void }) {
       }
     } catch { /* grammar hints are advisory — ignore any errors */ }
     recognitionRef.current = recognition;
-    transcriptRef.current = "";
+    transcriptRef.current   = "";
+    finalTranscriptRef.current = "";
+    shouldStopRef.current   = false;
 
     recognition.onstart = () => {
       setIsListening(true);
@@ -328,14 +336,18 @@ export default function App({ onClose }: { onClose?: () => void }) {
     recognition.addEventListener("speechend",   () => console.log("[STT] speech ended"));
 
     recognition.onresult = (e: SpeechRecognitionEvent) => {
-      const transcript = Array.from(e.results)
+      // continuous=false: e.results contains only this utterance — no Chrome accumulation quirks
+      const sessionText = Array.from(e.results)
         .map((r) => r[0].transcript)
-        .join("");
-      console.log("[STT] result:", transcript);
-      transcriptRef.current = transcript;
-      // flushSync forces React to paint the transcript immediately, before onend
-      // can batch a setInput("") that would erase it before the user sees it.
-      flushSync(() => setInput(transcript));
+        .join("")
+        .trim();
+      transcriptRef.current = sessionText;
+      const display = finalTranscriptRef.current
+        ? finalTranscriptRef.current + " " + sessionText
+        : sessionText;
+      console.log("[STT] result:", display);
+      // flushSync forces React to paint before onend can clear the input
+      flushSync(() => setInput(display));
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
         textareaRef.current.style.height =
@@ -344,18 +356,46 @@ export default function App({ onClose }: { onClose?: () => void }) {
     };
 
     recognition.onend = () => {
-      console.log("[STT] ended, transcript:", transcriptRef.current);
-      setIsListening(false);
-      const final = transcriptRef.current;
+      const sessionText = transcriptRef.current.trim();
       transcriptRef.current = "";
-      if (final.trim()) {
-        sendMessage(final.trim(), true);
+      if (sessionText) {
+        finalTranscriptRef.current = finalTranscriptRef.current
+          ? finalTranscriptRef.current + " " + sessionText
+          : sessionText;
+      }
+      console.log("[STT] ended, accumulated:", finalTranscriptRef.current);
+
+      if (shouldStopRef.current) {
+        // Finalize: stop listening and submit if there's text
+        shouldStopRef.current = false;
+        setIsListening(false);
+        const final = finalTranscriptRef.current;
+        finalTranscriptRef.current = "";
+        if (final && !suppressSubmitRef.current) sendMessage(final, true);
+        suppressSubmitRef.current = false;
+      } else {
+        // Keep listening: restart recognition and reset the silence timer
+        if (autoSubmitTimerRef.current) clearTimeout(autoSubmitTimerRef.current);
+        autoSubmitTimerRef.current = setTimeout(() => {
+          autoSubmitTimerRef.current = null;
+          shouldStopRef.current = true;
+          recognitionRef.current?.stop();
+        }, 3000);
+        // Defer start() by one tick so the browser finishes cleanup
+        setTimeout(() => {
+          try { recognition.start(); }
+          catch {
+            setIsListening(false);
+            setSttError("Could not restart microphone. Please try again.");
+            setTimeout(() => setSttError(""), 5000);
+          }
+        }, 0);
       }
     };
 
     recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
       console.error("[STT] error:", e.error);
-      setIsListening(false);
+      shouldStopRef.current = true; // onend will finalize, not restart
       const messages: Record<string, string> = {
         "no-speech":      "No speech detected. Please try again.",
         "network":        "Speech service unavailable. Check your internet connection.",
@@ -491,6 +531,15 @@ export default function App({ onClose }: { onClose?: () => void }) {
             ref={textareaRef}
             value={input}
             onChange={(e) => {
+              if (autoSubmitTimerRef.current) {
+                clearTimeout(autoSubmitTimerRef.current);
+                autoSubmitTimerRef.current = null;
+              }
+              if (isListening) {
+                suppressSubmitRef.current = true;
+                shouldStopRef.current = true;
+                recognitionRef.current?.stop();
+              }
               setInput(e.target.value);
               e.target.style.height = "auto";
               e.target.style.height = Math.min(Math.max(e.target.scrollHeight, 45), 120) + "px";
