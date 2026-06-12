@@ -84,7 +84,7 @@ export default function ChatWidget() {
               <div className="w-9 h-9 rounded-full bg-[var(--ai-primary)] flex items-center justify-center shrink-0">
                 <span className="text-white text-xs font-bold tracking-tight">H</span>
               </div>
-              <p className="text-[#2d1f14] font-bold text-[15px] leading-snug pr-6">{teaserTitle}</p>
+              <p className="text-[#2d1f14] text-[15px] leading-snug pr-6">{teaserTitle}</p>
             </div>
 
             {/* Subtext */}

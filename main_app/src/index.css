@@ -20,7 +20,11 @@
 }
 #ai-chat-widget {
   all: initial;
-  font-family: inherit;
+  font-family: var(--font-sans);
+}
+#ai-chat-widget input,
+#ai-chat-widget textarea {
+  font-family: var(--font-sans);
 }
 
 @keyframes teaser-in {
@@ -54,5 +58,6 @@
   }
 }
 .ai-teaser-wrapper {
+  font-family: var(--font-sans);
   animation: glow-breathe 3s ease-in-out infinite;
 }

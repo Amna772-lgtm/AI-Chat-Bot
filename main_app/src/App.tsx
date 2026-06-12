@@ -503,7 +503,7 @@ export default function App({ onClose }: { onClose?: () => void }) {
             }}
             placeholder={isListening ? "Listening…" : "Ask a question…"}
             rows={1}
-            style={{ minHeight: '40px', borderRadius: '10px' }}
+            style={{ minHeight: '40px', borderRadius: '10px', fontSize: '14px' }}
             className="flex-1 bg-gray-100 py-3 px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--ai-primary)]/50 focus:bg-white transition resize-none overflow-hidden"
           />
           {supportsSTT && (
