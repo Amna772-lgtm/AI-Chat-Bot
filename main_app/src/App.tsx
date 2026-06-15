@@ -16,6 +16,7 @@ const MESSAGES_KEY = "hhp_chat_msgs";
 const HISTORY_KEY  = "hhp_chat_hist";
 const SESSION_FLAG = "hhp_chat_init"; // sessionStorage: marks this tab as initialized
 const BC_CHANNEL   = "hhp_chat_bc";  // BroadcastChannel: detects live tabs
+const LANG_KEY     = "hhp_chat_lang";
 
 type AiChatConfig = { proxyUrl?: string; archiveUrl?: string; widgetName?: string; welcomeMessage?: string; widgetSubtitle?: string };
 const aiConfig = (window as Window & { aiChatConfig?: AiChatConfig }).aiChatConfig ?? ({} as AiChatConfig);
@@ -180,6 +181,10 @@ export default function App({ onClose }: { onClose?: () => void }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [sttError, setSttError] = useState("");
+  const [sttLang, setSttLang] = useState<"en-US" | "es-PA">(() => {
+    try { return (localStorage.getItem(LANG_KEY) as "en-US" | "es-PA") ?? "en-US"; }
+    catch { return "en-US"; }
+  });
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -252,6 +257,12 @@ export default function App({ onClose }: { onClose?: () => void }) {
     setChat(createChat());
   }, []);
 
+  const toggleLang = () => {
+    const next = sttLang === "en-US" ? "es-PA" : "en-US";
+    setSttLang(next);
+    try { localStorage.setItem(LANG_KEY, next); } catch {}
+  };
+
   const sendMessage = async (text?: string, fromVoice = false) => {
     const userMsg = (text || input).trim();
     if (!userMsg || isLoading) return;
@@ -308,7 +319,7 @@ export default function App({ onClose }: { onClose?: () => void }) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
     const recognition: SpeechRecognition = new SR();
-    recognition.lang = "en-US";
+    recognition.lang = sttLang;
     recognition.interimResults = true;
     recognition.continuous = false;
     // Attach Panama place-name grammar hints (Chrome/Edge only; others silently ignore)
@@ -550,11 +561,21 @@ export default function App({ onClose }: { onClose?: () => void }) {
                 sendMessage();
               }
             }}
-            placeholder={isListening ? "Listening…" : "Ask a question…"}
+            placeholder={isListening ? (sttLang === "es-PA" ? "Escucha…" : "Listening…") : "Ask a question…"}
             rows={1}
             style={{ minHeight: '40px', borderRadius: '10px', fontSize: '14px' }}
             className="flex-1 bg-gray-100 py-3 px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--ai-primary)]/50 focus:bg-white transition resize-none overflow-hidden"
           />
+          {supportsSTT && (
+            <button
+              onClick={toggleLang}
+              disabled={isListening}
+              title={sttLang === "en-US" ? "Switch to Spanish voice input" : "Cambiar a voz en inglés"}
+              className="shrink-0 text-xs font-semibold px-2 h-9 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            >
+              {sttLang === "en-US" ? "EN" : "ES"}
+            </button>
+          )}
           {supportsSTT && (
             <button
               onClick={toggleListening}
