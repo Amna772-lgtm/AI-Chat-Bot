@@ -504,7 +504,7 @@ add_action('wp_footer', function () {
         esc_attr($colors['hover']),
         esc_attr($colors['secondary'])
     );
-    echo '<div id="ai-chat-widget" style="' . $style . '"></div>';
+    echo '<div id="ai-chat-widget" class="ai-chat-widget" style="' . $style . '"></div>';
 });
 
 // ─── AI Property Assistant Proxy REST endpoint ──────────────────────────────────────────────

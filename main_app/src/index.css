@@ -1,5 +1,64 @@
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Inter:wght@100..900&display=swap');
-@import "tailwindcss";
+
+/* Import theme variables and utilities only — preflight is replaced below with scoped rules */
+@import "tailwindcss/theme";
+@import "tailwindcss/utilities";
+
+/* Scoped resets: mirror Tailwind's preflight but only inside the widget container */
+@layer base {
+  #ai-chat-widget *,
+  #ai-chat-widget *::before,
+  #ai-chat-widget *::after {
+    box-sizing: border-box;
+    border: 0 solid;
+    margin: 0;
+    padding: 0;
+  }
+  #ai-chat-widget h1,
+  #ai-chat-widget h2,
+  #ai-chat-widget h3,
+  #ai-chat-widget h4,
+  #ai-chat-widget h5,
+  #ai-chat-widget h6 {
+    font-size: inherit;
+    font-weight: inherit;
+  }
+  #ai-chat-widget a {
+    color: inherit;
+    text-decoration: inherit;
+  }
+  #ai-chat-widget ol,
+  #ai-chat-widget ul,
+  #ai-chat-widget menu {
+    list-style: none;
+  }
+  #ai-chat-widget img,
+  #ai-chat-widget svg,
+  #ai-chat-widget video,
+  #ai-chat-widget canvas,
+  #ai-chat-widget iframe,
+  #ai-chat-widget embed,
+  #ai-chat-widget object {
+    display: block;
+    vertical-align: middle;
+  }
+  #ai-chat-widget img,
+  #ai-chat-widget video {
+    max-width: 100%;
+    height: auto;
+  }
+  #ai-chat-widget button,
+  #ai-chat-widget input,
+  #ai-chat-widget select,
+  #ai-chat-widget optgroup,
+  #ai-chat-widget textarea {
+    font: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    background-color: transparent;
+    border-radius: 0;
+  }
+}
 
 @keyframes dot-blink {
   0%, 70%, 100% { opacity: 0; }
